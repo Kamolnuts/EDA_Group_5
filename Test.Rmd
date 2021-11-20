@@ -1,0 +1,482 @@
+---
+title: "Test"
+output: html_document
+---
+
+## Loading packages
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(zoo)
+library(boot)
+library(rpart)
+library(rpart.plot)
+library(modelr)
+```
+
+
+## Importing Kaggle data
+
+# Importing Kaggle's Energy generation, demand, and prices data
+
+```{r}
+kaggle_energy <- read_csv('data/Energy_demand_Generation_and_Prices_Spain/energy_dataset.csv')
+
+names(kaggle_energy) <- gsub(" ", "_", names(kaggle_energy))
+names(kaggle_energy) <- gsub("/", "_", names(kaggle_energy))
+names(kaggle_energy) <- gsub("-", "_", names(kaggle_energy))
+
+kaggle_energy
+```
+
+# Importing Kaggle's Weather data
+
+```{r}
+kaggle_weather <- read_csv('data/Energy_demand_Generation_and_Prices_Spain/weather_features.csv')
+kaggle_weather
+```
+
+# Pre-processing Kaggle's Weather data: adding variables (columns) of all cities
+
+```{r}
+kaggle_weather_Barcelona <- filter(kaggle_weather, city_name == "Barcelona") %>% 
+  select(-city_name) %>% 
+  rename(temp_Barcelona = temp, 
+         temp_min_Barcelona = temp_min, 
+         temp_max_Barcelona = temp_max, 
+         pressure_Barcelona = pressure, 
+         humidity_Barcelona = humidity, 
+         wind_speed_Barcelona = wind_speed, 
+         wind_deg_Barcelona = wind_deg, 
+         rain_1h_Barcelona = rain_1h, 
+         rain_3h_Barcelona = rain_3h, 
+         snow_3h_Barcelona = snow_3h, 
+         clouds_all_Barcelona = clouds_all, 
+         weather_id_Barcelona = weather_id, 
+         weather_main_Barcelona = weather_main, 
+         weather_description_Barcelona = weather_description, 
+         weather_icon_Barcelona = weather_icon)
+
+kaggle_weather_Bilbao <- filter(kaggle_weather, city_name == "Bilbao") %>% 
+  select(-city_name) %>% 
+  rename(temp_Bilbao = temp, 
+         temp_min_Bilbao = temp_min, 
+         temp_max_Bilbao = temp_max, 
+         pressure_Bilbao = pressure, 
+         humidity_Bilbao = humidity, 
+         wind_speed_Bilbao = wind_speed, 
+         wind_deg_Bilbao = wind_deg, 
+         rain_1h_Bilbao = rain_1h, 
+         rain_3h_Bilbao = rain_3h, 
+         snow_3h_Bilbao = snow_3h, 
+         clouds_all_Bilbao = clouds_all, 
+         weather_id_Bilbao = weather_id, 
+         weather_main_Bilbao = weather_main, 
+         weather_description_Bilbao = weather_description, 
+         weather_icon_Bilbao = weather_icon)
+
+kaggle_weather_Madrid <- filter(kaggle_weather, city_name == "Madrid") %>% 
+  select(-city_name) %>% 
+  rename(temp_Madrid = temp, 
+         temp_min_Madrid = temp_min, 
+         temp_max_Madrid = temp_max, 
+         pressure_Madrid = pressure, 
+         humidity_Madrid = humidity, 
+         wind_speed_Madrid = wind_speed, 
+         wind_deg_Madrid = wind_deg, 
+         rain_1h_Madrid = rain_1h, 
+         rain_3h_Madrid = rain_3h, 
+         snow_3h_Madrid = snow_3h, 
+         clouds_all_Madrid = clouds_all, 
+         weather_id_Madrid = weather_id, 
+         weather_main_Madrid = weather_main, 
+         weather_description_Madrid = weather_description, 
+         weather_icon_Madrid = weather_icon)
+
+kaggle_weather_Seville <- filter(kaggle_weather, city_name == "Seville") %>% 
+  select(-city_name) %>% 
+  rename(temp_Seville = temp, 
+         temp_min_Seville = temp_min, 
+         temp_max_Seville = temp_max, 
+         pressure_Seville = pressure, 
+         humidity_Seville = humidity, 
+         wind_speed_Seville = wind_speed, 
+         wind_deg_Seville = wind_deg, 
+         rain_1h_Seville = rain_1h, 
+         rain_3h_Seville = rain_3h, 
+         snow_3h_Seville = snow_3h, 
+         clouds_all_Seville = clouds_all, 
+         weather_id_Seville = weather_id, 
+         weather_main_Seville = weather_main, 
+         weather_description_Seville = weather_description, 
+         weather_icon_Seville = weather_icon)
+
+kaggle_weather_Valencia <- filter(kaggle_weather, city_name == "Valencia") %>% 
+  select(-city_name) %>% 
+  rename(temp_Valencia = temp, 
+         temp_min_Valencia = temp_min, 
+         temp_max_Valencia = temp_max, 
+         pressure_Valencia = pressure, 
+         humidity_Valencia = humidity, 
+         wind_speed_Valencia = wind_speed, 
+         wind_deg_Valencia = wind_deg, 
+         rain_1h_Valencia = rain_1h, 
+         rain_3h_Valencia = rain_3h, 
+         snow_3h_Valencia = snow_3h, 
+         clouds_all_Valencia = clouds_all, 
+         weather_id_Valencia = weather_id, 
+         weather_main_Valencia = weather_main, 
+         weather_description_Valencia = weather_description, 
+         weather_icon_Valencia = weather_icon)
+
+delete_duplicated_row <- function(df) {
+  for (i in 1:(nrow(df)-1)) {
+    if(df$dt_iso[i] == df$dt_iso[i+1]) {
+      df[i, 2] <- NA
+    }
+  }
+  drop_na(df)
+}
+
+kaggle_weather_Barcelona_35064rows <- delete_duplicated_row(kaggle_weather_Barcelona)
+kaggle_weather_Bilbao_35064rows <- delete_duplicated_row(kaggle_weather_Bilbao)
+kaggle_weather_Madrid_35064rows <- delete_duplicated_row(kaggle_weather_Madrid)
+kaggle_weather_Seville_35064rows <- delete_duplicated_row(kaggle_weather_Seville)
+kaggle_weather_Valencia_35064rows <- delete_duplicated_row(kaggle_weather_Valencia)
+
+kaggle_weather_wider <- left_join(kaggle_weather_Barcelona_35064rows, kaggle_weather_Bilbao_35064rows, by = c("dt_iso")) %>% 
+  left_join(kaggle_weather_Madrid_35064rows, by = c("dt_iso")) %>% 
+  left_join(kaggle_weather_Seville_35064rows, by = c("dt_iso")) %>% 
+  left_join(kaggle_weather_Valencia_35064rows, by = c("dt_iso"))
+
+kaggle_weather_wider
+```
+
+# Combining Kaggle data into only 1 data frame
+
+```{r}
+kaggle <- left_join(kaggle_energy, kaggle_weather_wider, by = c("time" = "dt_iso"))
+kaggle
+```
+
+# Checking NA
+
+```{r}
+colSums(is.na(kaggle))
+```
+
+# Filling with NA (Imputation)
+
+```{r}
+kaggle_clean <- mutate(kaggle, 
+                       generation_biomass = na.approx(generation_biomass), 
+                       generation_fossil_brown_coal_lignite = na.approx(generation_fossil_brown_coal_lignite),
+                       generation_fossil_coal_derived_gas = na.approx(generation_fossil_coal_derived_gas),
+                       generation_fossil_gas = na.approx(generation_fossil_gas), 
+                       generation_fossil_hard_coal = na.approx(generation_fossil_hard_coal),
+                       generation_fossil_oil = na.approx(generation_fossil_oil), 
+                       generation_fossil_oil_shale = na.approx(generation_fossil_oil_shale),
+                       generation_fossil_peat = na.approx(generation_fossil_peat), 
+                       generation_geothermal = na.approx(generation_geothermal),
+                       generation_hydro_pumped_storage_consumption = na.approx(generation_hydro_pumped_storage_consumption), 
+                       generation_hydro_run_of_river_and_poundage = na.approx(generation_hydro_run_of_river_and_poundage), 
+                       generation_hydro_water_reservoir = na.approx(generation_hydro_water_reservoir),
+                       generation_marine = na.approx(generation_marine), 
+                       generation_nuclear = na.approx(generation_nuclear), 
+                       generation_other = na.approx(generation_other), 
+                       generation_other_renewable = na.approx(generation_other_renewable), 
+                       generation_solar = na.approx(generation_solar), 
+                       generation_waste = na.approx(generation_waste), 
+                       generation_wind_offshore = na.approx(generation_wind_offshore), 
+                       generation_wind_onshore = na.approx(generation_wind_onshore), 
+                       total_load_actual = na.approx(total_load_actual))
+
+colSums(is.na(kaggle_clean))
+```
+
+# Adding date, hour, day, week, and year column
+
+```{r}
+kaggle_prep <- mutate(kaggle_clean, date = date(time)) %>% mutate(hour = hour(time), day = (as.POSIXlt(date)$wday + 1), week = week(time), year = year(time)) # day = 1 is Sunday and day = 7 is Saturday
+
+kaggle_prep
+```
+
+# Adding sine and cosine of hour, day, and week column
+
+```{r}
+kaggle_prep <- mutate(kaggle_prep, 
+                sin_hour = sin(2*pi*hour/24), 
+                cos_hour = cos(2*pi*hour/24), 
+                sin_day = sin(2*pi*day/7), 
+                cos_day = cos(2*pi*day/7), 
+                sin_week = sin(2*pi*week/52), 
+                cos_week = cos(2*pi*week/52))
+
+kaggle_prep
+```
+
+
+## Importing Renewables Ninja data
+
+# Importing data
+
+```{r}
+ninja_weather <- read_csv('data/Renewables_Ninja/ninja_weather_country_ES_merra-2_population_weighted.csv', skip = 2)
+ninja_weather
+```
+
+# Transforming time column from class character into class POSIXct/POSIXt
+
+```{r}
+ninja_weather <- mutate(ninja_weather, time = dmy_hm(time))
+ninja_weather
+```
+
+# Selecting only Year 2015-2018 and adding date, hour, day, week, and year column
+
+```{r}
+ninja_weather_selected <- ninja_weather[which(ninja_weather$time == kaggle$time[1]):which(ninja_weather$time == kaggle$time[length(kaggle$time)]), ]
+
+ninja_weather_prep <- mutate(ninja_weather_selected, date = date(time)) %>% mutate(hour = hour(time), day = (as.POSIXlt(date)$wday + 1), week = week(time), year = year(time)) # day = 1 is Sunday and day = 7 is Saturday
+
+ninja_weather_prep
+```
+
+# Adding sine and cosine of hour, day, and week column
+
+```{r}
+ninja_weather_prep <- mutate(ninja_weather_prep, 
+                             sin_hour = sin(2*pi*hour/24), 
+                             cos_hour = cos(2*pi*hour/24), 
+                             sin_day = sin(2*pi*day/7), 
+                             cos_day = cos(2*pi*day/7), 
+                             sin_week = sin(2*pi*week/52), 
+                             cos_week = cos(2*pi*week/52))
+                
+ninja_weather_prep
+```
+
+
+## Dividing training and testing data
+
+# Kaggle data
+
+```{r}
+train_kaggle <- filter(kaggle_prep, year < 2018) # train data ~ 75%
+test_kaggle <- filter(kaggle_prep, year >= 2018) # test data ~ 25%
+
+tail(train_kaggle)
+head(test_kaggle)
+```
+
+# Renewables Ninja data
+
+```{r}
+train_ninja_weather <- filter(ninja_weather_prep, year < 2018) # train data ~ 75%
+test_ninja_weather <- filter(ninja_weather_prep, year >= 2018) # test data ~ 25%
+
+tail(train_ninja_weather)
+head(test_ninja_weather)
+```
+
+
+## Solar prediction
+
+# Checking autocorrelation of Solar generation, temperature, and irradiance
+
+```{r}
+acf(train_kaggle$generation_solar, lag.max = 48)
+acf(train_ninja_weather$irradiance_surface, lag.max = 48)
+acf(train_ninja_weather$irradiance_toa, lag.max = 48)
+acf(train_ninja_weather$temperature, lag.max = 48)
+acf(train_ninja_weather$cloud_cover, lag.max = 48)
+acf(train_ninja_weather$precipitation, lag.max = 48)
+acf(train_ninja_weather$snowfall, lag.max = 48)
+# We want to predict tomorrow based on older than yesterday data, so the 24-hour lagged variables will be used for prediction, which are quite good representations.
+```
+
+# Selecting appropriate variables for Solar generation prediction
+
+```{r}
+prep_solar <- function(df1, df2) {
+   df1 <- transmute(df1, DataTime = time, 
+                   Actual_solar_gen = generation_solar, 
+                   sin_hour = sin_hour, 
+                   cos_hour = cos_hour, 
+                   sin_week = sin_week, 
+                   cos_week = cos_week,
+                   lagged_24hr_solar_gen = lag(df1$generation_solar, 24))
+   df2 <- transmute(df2, DataTime = time, 
+                   lagged_24hr_irradiance_surface = lag(df2$irradiance_surface, 24), 
+                   lagged_24hr_irradiance_toa = lag(df2$irradiance_toa, 24), 
+                   lagged_24hr_temperature = lag(df2$temperature, 24), 
+                   lagged_24hr_cloud_cover = lag(df2$cloud_cover, 24), 
+                   lagged_24hr_precipitation = lag(df2$precipitation, 24), 
+                   lagged_24hr_snowfall = lag(df2$snowfall, 24))
+   df <- left_join(df1, df2, by = "DataTime")
+   return(df)
+}
+
+train_solar <- prep_solar(train_kaggle, train_ninja_weather) %>% drop_na()
+test_solar <- prep_solar(test_kaggle, test_ninja_weather) %>% drop_na()
+train_solar
+test_solar
+```
+
+# Creating with linear regression model
+
+```{r}
+solar_linear_model <- lm(Actual_solar_gen ~ .-DataTime, train_solar)
+summary(solar_linear_model)
+```
+
+# Creating with decision tree model
+
+```{r}
+solar_decision_tree_model <- rpart(Actual_solar_gen ~ .-DataTime, train_solar, 
+                                   minsplit = 5, minbucket = 1, cp = 0.001)
+rpart.plot(solar_decision_tree_model)
+```
+
+# Comparing models
+
+```{r}
+predicted_train_solar <- transmute(train_solar, 
+                              DataTime = DataTime, 
+                              Actual_solar_gen = Actual_solar_gen, 
+                              Predicted_linear_solar_gen = predict(solar_linear_model, train_solar), 
+                              Predicted_decision_tree_solar_gen = predict(solar_decision_tree_model)) %>%
+  pivot_longer(Predicted_linear_solar_gen:Predicted_decision_tree_solar_gen, names_to = "model", values_to = "predicted") %>% 
+  mutate(residual = predicted - Actual_solar_gen)
+
+predicted_train_solar
+```
+
+# Model evaluation
+
+```{r}
+r_squared <- function(actual, predicted) {
+  ans <- 1- (sum((actual - predicted)^2)/sum((actual - mean(actual))^2))
+  return(ans)
+}
+
+mape <- function(actual, predicted, train) {
+  ans <- mean(if_else(actual != 0, abs(actual - predicted)/actual, 0))*100
+  return(ans)
+}
+```
+
+```{r}
+Acc_metrics <- group_by(predicted_train_solar, model) %>% 
+  summarise(R_squared = r_squared(Actual_solar_gen, predicted), 
+            MAPE = mape(Actual_solar_gen, predicted, train_solar),
+            MAE = mae(Actual_solar_gen, predicted))
+
+Acc_metrics
+```
+
+## Onshore Wind prediction
+
+# Checking autocorrelation of Onshore wind generation, pressure, wind speed, and wind direction
+
+```{r}
+acf(train_kaggle$generation_wind_onshore, lag.max = 48)
+acf(train_kaggle$wind_speed_Barcelona, lag.max = 48)
+acf(train_kaggle$wind_deg_Barcelona, lag.max = 48)
+acf(train_kaggle$wind_speed_Bilbao, lag.max = 48)
+acf(train_kaggle$wind_deg_Bilbao, lag.max = 48)
+acf(train_kaggle$wind_speed_Madrid, lag.max = 48)
+acf(train_kaggle$wind_deg_Madrid, lag.max = 48)
+acf(train_kaggle$wind_speed_Seville, lag.max = 48)
+acf(train_kaggle$wind_deg_Seville, lag.max = 48)
+acf(train_kaggle$wind_speed_Valencia, lag.max = 48)
+acf(train_kaggle$wind_deg_Valencia, lag.max = 48)
+acf(train_kaggle$pressure_Barcelona, lag.max = 48)
+acf(train_kaggle$pressure_Bilbao, lag.max = 48)
+acf(train_kaggle$pressure_Madrid, lag.max = 48)
+acf(train_kaggle$pressure_Seville, lag.max = 48)
+acf(train_kaggle$pressure_Valencia, lag.max = 48)
+# We want to predict tomorrow based on older than yesterday data, so the 24-hour lagged variables will be used for prediction. However, they are not that good representations, but ACFs are still around 0.5, which is quite acceptable.
+```
+
+# Selecting appropriate variables for Onshore Wind generation prediction
+
+```{r}
+prep_wind <- function(df) {
+   df <- transmute(df, DataTime = time, 
+                   Actual_onshore_wind_gen = generation_wind_onshore, 
+                   sin_hour = sin_hour, 
+                   cos_hour = cos_hour, 
+                   sin_week = sin_week, 
+                   cos_week = cos_week,
+                   lagged_24hr_onshore_wind_gen = lag(df$generation_wind_onshore, 24),
+                   lagged_24hr_wind_speed_Barcelona = lag(df$wind_speed_Barcelona, 24),
+                   lagged_24hr_wind_deg_Barcelona = lag(df$wind_deg_Barcelona, 24),
+                   lagged_24hr_wind_speed_Bilbao = lag(df$wind_speed_Bilbao, 24),
+                   lagged_24hr_wind_deg_Bilbao = lag(df$wind_deg_Bilbao, 24),
+                   lagged_24hr_wind_speed_Madrid = lag(df$wind_speed_Madrid, 24),
+                   lagged_24hr_wind_deg_Madrid = lag(df$wind_deg_Madrid, 24),
+                   lagged_24hr_wind_speed_Seville = lag(df$wind_speed_Seville, 24),
+                   lagged_24hr_wind_deg_Seville = lag(df$wind_deg_Seville, 24),
+                   lagged_24hr_wind_speed_Valencia = lag(df$wind_speed_Valencia, 24),
+                   lagged_24hr_wind_deg_Valencia = lag(df$wind_deg_Valencia, 24),
+                   lagged_24hr_pressure_Barcelona = lag(df$pressure_Barcelona, 24), 
+                   lagged_24hr_pressure_Bilbao = lag(df$pressure_Bilbao, 24),
+                   lagged_24hr_pressure_Madrid = lag(df$pressure_Madrid, 24),
+                   lagged_24hr_pressure_Seville = lag(df$pressure_Seville, 24),
+                   lagged_24hr_pressure_Valencia = lag(df$pressure_Valencia, 24))
+   return(df)
+}
+
+train_wind <- prep_wind(train_kaggle) %>% drop_na()
+test_wind <- prep_wind(test_kaggle) %>% drop_na()
+train_wind
+test_wind
+```
+
+# ////////////Creating with linear regression model
+
+```{r}
+wind_linear_model <- lm(Actual_onshore_wind_generation ~ .-DataTime, train_wind)
+
+predicted_train_wind <- transmute(train_wind, 
+                              DataTime = DataTime, 
+                              Actual_onshore_wind_generation = Actual_onshore_wind_generation, 
+                              Predicted_linear_onshore_wind_generation = predict(wind_linear_model, train_wind))
+
+predicted_train_wind
+```
+
+
+## Demand prediction
+
+# ////////////Assuming that this week demand equals to next week demand (Naive prediction)
+
+```{r}
+predicted_demand <- transmute(kaggle, DataTime = time, Actual_demand = kaggle$'total load actual', Predicted_demand = lag(kaggle$'total load actual', 24*7)) %>% drop_na()
+predicted_demand
+```
+
+
+## Evaluating model performance
+
+# ////////////Evaluating model performance of Solar prediction
+
+```{r}
+rmse(predicted_train_solar$Actual_solar_generation, predicted_train_solar$Predicted_linear_solar_generation)
+```
+
+# ////////////Evaluating model performance of Onshore Wind prediction
+
+```{r}
+rmse(predicted_train_wind$Actual_onshore_wind_generation, predicted_train_wind$Predicted_linear_onshore_wind_generation)
+```
+
+# ////////////Evaluating model performance of Demand prediction
+
+```{r}
+rmse(predicted_demand$Actual_demand, predicted_demand$Predicted_demand)
+```
+
